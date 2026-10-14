@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DB Chat</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#6b7280;--line:#e3e6ea;--accent:#2f5bea;--accent-t:#fff;--danger:#c0392b;--ok:#1e8e5a;--code:#f0f2f5}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1318;--card:#171c23;--text:#e6e9ee;--muted:#8b95a3;--line:#262d37;--accent:#6d8cff;--accent-t:#0f1318;--danger:#ff6b5e;--ok:#4cc38a;--code:#0f1318}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 14px}
+button.primary{background:var(--accent);color:var(--accent-t);border-color:var(--accent)}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.5;cursor:default}
+input,select,textarea{font:inherit;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+.check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px;margin:10px 0}
+.check input{width:auto}
+
+/* connect */
+#connect{max-width:460px;margin:6vh auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 8px}
+.row{display:grid;grid-template-columns:1fr 110px;gap:10px}
+#err{color:var(--danger);font-size:14px;margin-top:12px;white-space:pre-wrap}
+
+/* app */
+#app{display:grid;grid-template-columns:280px 1fr;height:100vh}
+aside{border-right:1px solid var(--line);background:var(--card);overflow:auto;padding:16px}
+aside h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
+.tbl{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.tbl summary{padding:7px 10px;cursor:pointer;font-weight:600;font-size:14px}
+.tbl summary span{color:var(--muted);font-weight:400;font-size:12px}
+.tbl ul{margin:0;padding:6px 10px 8px 26px;font-size:12.5px;color:var(--muted)}
+.tbl li b{color:var(--text);font-weight:500}
+main{display:flex;flex-direction:column;min-width:0;height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+header .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:8px}
+#log{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:860px;padding:10px 14px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-t)}
+.msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line)}
+.msg.err{color:var(--danger)}
+.proposal{align-self:flex-start;width:min(860px,100%);background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:14px}
+.proposal.write{border-left-color:var(--danger)}
+.proposal .top{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px}
+.tag{font-weight:600}.tag.write{color:var(--danger)}.tag.read{color:var(--ok)}
+.proposal textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;background:var(--code);min-height:90px;resize:vertical}
+.actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+.status{font-size:13px;color:var(--muted)}
+.tablewrap{overflow:auto;max-height:340px;margin-top:12px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--code)}
+form#chat{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--line);background:var(--card)}
+@media(max-width:760px){#app{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+
+<div id="connect">
+  <div class="card">
+    <h1>Connect to your database</h1>
+    <p class="sub">Credentials are kept in server memory for this session only and are never saved.</p>
+    <form id="connForm">
+      <label>Database type</label>
+      <select id="type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL / MariaDB</option></select>
+      <div class="row">
+        <div><label>Host</label><input id="host" value="localhost" required></div>
+        <div><label>Port</label><input id="port" value="5432" required></div>
+      </div>
+      <label>Database name</label><input id="database" required>
+      <label>User</label><input id="user" autocomplete="off" required>
+      <label>Password</label><input id="password" type="password" autocomplete="off">
+      <label class="check"><input type="checkbox" id="ssl"> Use SSL</label>
+      <label class="check"><input type="checkbox" id="allowWrites"> Allow write statements (INSERT / UPDATE / DELETE / DDL) after approval</label>
+      <button class="primary" id="connBtn" style="width:100%;margin-top:8px">Connect</button>
+      <div id="err"></div>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <aside><h2>Schema</h2><div id="schema"></div></aside>
+  <main>
+    <header>
+      <div><b id="dbname"></b><span class="badge" id="mode"></span></div>
+      <div style="display:flex;gap:8px;align-items:center"><select id="model" title="AI model" style="width:260px"><option>Loading models…</option></select><button id="disc">Disconnect</button></div>
+    </header>
+    <div id="log"></div>
+    <form id="chat">
+      <input id="q" placeholder="Ask about your data… e.g. “top 10 customers by total orders”" autocomplete="off">
+      <button class="primary" id="send">Send</button>
+    </form>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let token = null, history = [];
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models', { headers: { 'x-session': token } });
+    const d = await r.json();
+    $('model').innerHTML = d.models.length ? d.models.map(m => `<option ${m === d.default ? 'selected' : ''}>${esc(m)}</option>`).join('') : '<option value="">No models found</option>';
+    if (d.warning) addBot('Could not load the model list: ' + d.warning, true);
+  } catch (e) { $('model').innerHTML = '<option value="">Model list unavailable</option>'; }
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-session': token || '' }, body: JSON.stringify(body || {}) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+
+$('type').onchange = () => { $('port').value = $('type').value === 'postgres' ? '5432' : '3306'; };
+
+$('connForm').onsubmit = async e => {
+  e.preventDefault();
+  $('err').textContent = ''; $('connBtn').disabled = true; $('connBtn').textContent = 'Connecting…';
+  try {
+    const d = await api('/api/connect', {
+      type: $('type').value, host: $('host').value.trim(), port: $('port').value.trim(),
+      database: $('database').value.trim(), user: $('user').value, password: $('password').value,
+      ssl: $('ssl').checked, allowWrites: $('allowWrites').checked
+    });
+    token = d.token; $('password').value = '';
+    $('dbname').textContent = $('database').value;
+    $('mode').textContent = d.allowWrites ? 'writes allowed (with approval)' : 'read-only';
+    renderSchema(d.tables);
+    $('connect').classList.add('hidden'); $('app').classList.remove('hidden');
+    history = []; $('log').innerHTML = ''; loadModels();
+    addBot(`Connected. I can see ${d.tables.length} table(s). Ask me anything about the structure or the data. I'll show you the SQL first and nothing runs until you approve it.`);
+  } catch (ex) { $('err').textContent = ex.message; }
+  $('connBtn').disabled = false; $('connBtn').textContent = 'Connect';
+};
+
+$('disc').onclick = async () => {
+  await api('/api/disconnect').catch(() => {});
+  token = null; $('app').classList.add('hidden'); $('connect').classList.remove('hidden');
+};
+
+function renderSchema(tables) {
+  $('schema').innerHTML = tables.map(t => `
+    <details class="tbl"><summary>${esc(t.name)} <span>${t.rows != null ? '~' + t.rows + ' rows' : ''}</span></summary>
+    <ul>${t.columns.map(c => `<li><b>${esc(c.name)}</b> ${esc(c.type)}${c.pk ? ' 🔑' : ''}</li>`).join('')}
+    ${t.fks.map(f => `<li>↪ ${esc(f.column)} → ${esc(f.ref)}</li>`).join('')}</ul></details>`).join('');
+}
+
+function scroll() { const l = $('log'); l.scrollTop = l.scrollHeight; }
+function addUser(t) { const d = document.createElement('div'); d.className = 'msg user'; d.textContent = t; $('log').appendChild(d); scroll(); }
+function addBot(t, err) { const d = document.createElement('div'); d.className = 'msg bot' + (err ? ' err' : ''); d.textContent = t; $('log').appendChild(d); scroll(); return d; }
+
+$('chat').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('q').value.trim(); if (!text) return;
+  $('q').value = ''; $('send').disabled = true;
+  addUser(text); history.push({ role: 'user', content: text });
+  const thinking = addBot('Thinking…');
+  try {
+    const d = await api('/api/chat', { messages: history, model: $('model').value });
+    thinking.remove();
+    if (d.reply) addBot(d.reply);
+    history.push({ role: 'assistant', content: d.reply + (d.proposal ? `\n\nProposed SQL:\n${d.proposal.sql}` : '') });
+    if (d.proposal) addProposal(d.proposal);
+  } catch (ex) { thinking.remove(); addBot(ex.message, true); history.pop(); }
+  $('send').disabled = false; $('q').focus();
+};
+
+function addProposal(p) {
+  const el = document.createElement('div');
+  el.className = 'proposal ' + p.kind;
+  el.innerHTML = `
+    <div class="top"><span>Proposed query, <span class="tag ${p.kind}">${p.kind === 'read' ? 'READ-ONLY' : '⚠ WRITES DATA'}</span></span><span>You can edit it before approving</span></div>
+    <textarea spellcheck="false">${esc(p.sql)}</textarea>
+    <div class="actions">
+      <button class="primary run">Approve &amp; run</button>
+      <button class="danger rej">Reject</button>
+      <span class="status"></span>
+    </div>
+    <div class="result"></div>`;
+  $('log').appendChild(el); scroll();
+  const ta = el.querySelector('textarea'), run = el.querySelector('.run'), rej = el.querySelector('.rej'), st = el.querySelector('.status');
+  const lock = () => { run.disabled = rej.disabled = ta.disabled = true; };
+  rej.onclick = () => { lock(); st.textContent = 'Rejected, not executed.'; history.push({ role: 'user', content: '(I rejected that query.)' }); };
+  run.onclick = async () => {
+    if (p.kind === 'write' && !confirm('This statement can MODIFY your data. Run it?')) return;
+    lock(); st.textContent = 'Running…';
+    try {
+      const d = await api('/api/execute', { proposalId: p.id, sql: ta.value });
+      st.textContent = d.message || `${d.totalRows} row(s)${d.truncated ? ' (showing first ' + d.rows.length + ')' : ''}`;
+      if (d.columns.length) el.querySelector('.result').innerHTML = `<div class="tablewrap"><table><thead><tr>${d.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${
+        d.rows.map(r => `<tr>${r.map(v => `<td>${v === null ? '<i style="color:var(--muted)">null</i>' : esc(typeof v === 'object' ? JSON.stringify(v) : v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    } catch (ex) { st.textContent = 'Error: ' + ex.message; st.style.color = 'var(--danger)'; }
+    scroll();
+  };
+}
+</script>
+</body>
+</html>
